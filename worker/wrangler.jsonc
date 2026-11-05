@@ -1,0 +1,6 @@
+{
+  "name": "nolimitdocs-engine",
+  "main": "index.js",
+  "compatibility_date": "2026-10-01",
+  "vars": { "ENGINE_RELEASE_URL": "https://github.com/dheemanthlbharadwaj-cloud/nolimitdocs-engine/releases/download/engine-v1" }
+}
