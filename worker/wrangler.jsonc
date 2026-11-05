@@ -2,6 +2,5 @@
   "name": "nolimitdocs-engine",
   "main": "index.js",
   "compatibility_date": "2026-10-01",
-  "kv_namespaces": [{ "binding": "ENGINE_KV", "id": "6ebfe03c6f6f41b0a920d83c7d773b7a" }],
   "vars": { "ENGINE_RELEASE_URL": "https://github.com/dheemanthlbharadwaj-cloud/nolimitdocs-engine/releases/download/engine-v1" }
 }
