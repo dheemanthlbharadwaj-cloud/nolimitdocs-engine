@@ -14,5 +14,7 @@ COPY requirements.txt .
 # The optional "ca" build secret lets the image build behind a TLS-inspecting proxy; it is not kept in the image.
 RUN --mount=type=secret,id=ca sh -c 'if [ -s /run/secrets/ca ]; then export PIP_CERT=/run/secrets/ca; fi; pip3 install --no-cache-dir --break-system-packages -r requirements.txt'
 COPY app.py .
+# Many-core hosts make glibc and math libraries allocate per-core memory pools; cap them to stay under 512 MB.
+ENV MALLOC_ARENA_MAX=2 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 SAL_USE_VCLPLUGIN=svp
 ENV PORT=8080
 CMD exec python3 -m uvicorn app:app --host 0.0.0.0 --port ${PORT} --workers 1
