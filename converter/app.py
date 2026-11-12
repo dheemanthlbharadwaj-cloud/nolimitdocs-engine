@@ -105,7 +105,10 @@ def soffice(src: str, filt: str, outdir: str) -> str:
 
 @app.on_event("startup")
 def _warm():
-    threading.Thread(target=_uno_server, daemon=True).start()
+    def go():
+        with _uno_lock:  # never start two offices at once: that exceeds a 512 MB host
+            _uno_server()
+    threading.Thread(target=go, daemon=True).start()
 
 
 def pdf_to_docx(pdf: str, out: str) -> None:
