@@ -14,6 +14,7 @@ import os
 import shutil
 import socket
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -21,6 +22,7 @@ import zipfile
 
 import fitz  # PyMuPDF
 from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import Response
 from unoserver.client import UnoClient
 
@@ -68,7 +70,7 @@ def _uno_server():
     global _uno
     if _uno is None or _uno.poll() is not None:
         _uno = subprocess.Popen(["python3", "-m", "unoserver.server", "--interface", "127.0.0.1", "--port", "2003"],
-                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                                stdout=sys.stderr, stderr=sys.stderr)
         for _ in range(120):
             try:
                 socket.create_connection(("127.0.0.1", 2003), timeout=1).close()
@@ -112,12 +114,12 @@ def _warm():
 
 
 def pdf_to_docx(pdf: str, out: str) -> None:
-    from pdf2docx import Converter
-    cv = Converter(pdf)
-    try:
-        cv.convert(out, multi_processing=False)
-    finally:
-        cv.close()
+    """Rebuild a PDF as Word in a child process, so its memory (OpenCV, NumPy) is returned afterwards."""
+    code = ("import sys\nfrom pdf2docx import Converter\ncv = Converter(sys.argv[1])\n"
+            "cv.convert(sys.argv[2], multi_processing=False)\ncv.close()\n")
+    r = subprocess.run(["python3", "-c", code, pdf, out], capture_output=True, timeout=240)
+    if r.returncode != 0 or not os.path.exists(out):
+        raise HTTPException(422, "This PDF could not be rebuilt as an editable document.")
 
 
 def pdf_to_pptx(pdf: str, out: str) -> None:
@@ -210,7 +212,13 @@ def convert(src: str, target: str, work: str):
 
 @app.get("/healthz")
 def healthz():
-    return {"ok": True}
+    def mb(name):
+        try:
+            return round(int(open("/sys/fs/cgroup/" + name).read()) / 1048576)
+        except Exception:
+            return None
+    return {"ok": True, "mem_mb": mb("memory.current") or mb("memory/memory.usage_in_bytes"),
+            "peak_mb": mb("memory.peak") or mb("memory/memory.max_usage_in_bytes")}
 
 
 @app.post("/convert")
@@ -233,7 +241,7 @@ async def convert_endpoint(request: Request, to: str, name: str,
         src = os.path.join(work, "input." + ext)
         with open(src, "wb") as f:
             f.write(body)
-        data, out_ext = convert(src, to, work)
+        data, out_ext = await run_in_threadpool(convert, src, to, work)
     finally:
         shutil.rmtree(work, ignore_errors=True)
     return Response(content=data, media_type=MIME[out_ext],
